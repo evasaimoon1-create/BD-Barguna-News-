@@ -1,4 +1,3 @@
-
 <!DOCTYPE html>
 <html lang="bn">
 <head>
@@ -6,82 +5,70 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>BD Barguna News Admin</title>
 <style>
-body{font-family:Arial;background:#f2f4f7;padding:15px}
-main{max-width:600px;margin:auto;background:white;padding:20px;border-radius:10px}
+body{font-family:Arial,sans-serif;background:#f2f4f7;padding:15px;margin:0}
+main{max-width:600px;margin:20px auto;background:white;padding:20px;border-radius:10px}
 input,textarea,button{width:100%;box-sizing:border-box;padding:12px;margin:8px 0;font-size:16px}
 button{background:#b00020;color:white;border:0;border-radius:6px}
+label{display:block;margin-top:8px}
+small{color:#555;line-height:1.5}
 </style>
 </head>
 <body>
 <main>
 <h2>BD Barguna News – Admin</h2>
 <p>নতুন খবর প্রকাশ করুন</p>
-<input id="token" type="password" placeholder="GitHub Token">
+<input id="token" type="password" autocomplete="off" placeholder="GitHub Token">
 <input id="title" placeholder="খবরের শিরোনাম">
-<input id="category" placeholder="বিভাগ">
+<input id="category" placeholder="বিভাগ (যেমন: বরগুনা)">
 <textarea id="details" rows="7" placeholder="খবরের বিস্তারিত"></textarea>
+<input id="image" type="url" placeholder="ছবির সরাসরি URL (ঐচ্ছিক)">
+<input id="video" type="url" placeholder="YouTube ভিডিও লিংক (ঐচ্ছিক)">
+<label><input id="breaking" type="checkbox" style="width:auto"> ব্রেকিং নিউজ</label>
 <button onclick="publish()">সরাসরি খবর প্রকাশ করুন</button>
-<p id="status"></p>
+<p id="status" role="status"></p>
+<small>ছবির URL অবশ্যই ছবির সরাসরি লিংক হতে হবে। ভিডিওর জন্য YouTube লিংক দিন। Token কাউকে দেবেন না এবং কাজ শেষে GitHub Settings থেকে revoke করতে পারেন।</small>
 </main>
 <script>
-const owner="evasaimoon1-create";
-const repo="BD-Barguna-News-";
+const owner="evasaimoon1-create",repo="BD-Barguna-News-",branch="main";
 let posts=[];
-
 async function load(){
- const r=await fetch("./posts.json?"+Date.now());
- if(r.ok) posts=await r.json();
+ try{const r=await fetch("./posts.json?"+Date.now());if(r.ok){const data=await r.json();if(Array.isArray(data))posts=data;}}
+ catch(e){}
 }
 function base64(text){
- const bytes=new TextEncoder().encode(text);
- let binary="";
- bytes.forEach(b=>binary+=String.fromCharCode(b));
- return btoa(binary);
+ const bytes=new TextEncoder().encode(text);let binary="";
+ bytes.forEach(b=>binary+=String.fromCharCode(b));return btoa(binary);
 }
 async function publish(){
  const token=document.getElementById("token").value.trim();
  const title=document.getElementById("title").value.trim();
  const category=document.getElementById("category").value.trim();
  const details=document.getElementById("details").value.trim();
+ const image=document.getElementById("image").value.trim();
+ const video=document.getElementById("video").value.trim();
+ const breaking=document.getElementById("breaking").checked;
  const status=document.getElementById("status");
- if(!token||!title||!details){
- status.textContent="সব ঘর পূরণ করুন।";
- return;
- }
+ if(!token||!title||!details){status.textContent="Token, শিরোনাম ও বিস্তারিত পূরণ করুন।";return;}
+ if(image&&!/^https:\/\//i.test(image)){status.textContent="ছবির URL https:// দিয়ে শুরু হতে হবে।";return;}
+ if(video&&!/^https:\/\//i.test(video)){status.textContent="ভিডিও লিংক https:// দিয়ে শুরু হতে হবে।";return;}
  status.textContent="প্রকাশ করা হচ্ছে...";
  try{
- const url="https://api.github.com/repos/"+owner+"/"+repo+"/contents/posts.json";
- const headers={
- Accept:"application/vnd.github+json",
- Authorization:"Bearer "+token,
- "X-GitHub-Api-Version":"2022-11-28"
- };
- const old=await fetch(url+"?ref=main",{headers});
- if(!old.ok) throw new Error("Token বা অনুমতি পরীক্ষা করুন।");
- const file=await old.json();
- posts.unshift({
- title,category,details,
- date:new Date().toLocaleString("bn-BD")
- });
- const result=await fetch(url,{
- method:"PUT",
- headers,
- body:JSON.stringify({
- message:"Publish news",
- content:base64(JSON.stringify(posts,null,2)),
- sha:file.sha,
- branch:"main"
- })
- });
- if(!result.ok) throw new Error("প্রকাশ করা যায়নি।");
- status.textContent="সফল! খবর প্রকাশ হয়েছে।";
- document.getElementById("title").value="";
- document.getElementById("category").value="";
- document.getElementById("details").value="";
- document.getElementById("token").value="";
- }catch(e){
- status.textContent="সমস্যা: "+e.message;
- }
+  const url="https://api.github.com/repos/"+owner+"/"+repo+"/contents/posts.json";
+  const headers={Accept:"application/vnd.github+json",Authorization:"Bearer "+token,"X-GitHub-Api-Version":"2022-11-28"};
+  const old=await fetch(url+"?ref="+branch,{headers});
+  if(!old.ok)throw new Error("Token বা repository permission পরীক্ষা করুন।");
+  const file=await old.json();
+  const post={title,category,details,date:new Date().toLocaleString("bn-BD"),breaking};
+  if(image)post.image=image;
+  if(video)post.video=video;
+  posts.unshift(post);
+  const result=await fetch(url,{method:"PUT",headers,body:JSON.stringify({message:"Publish news from admin",content:base64(JSON.stringify(posts,null,2)),sha:file.sha,branch})});
+  const data=await result.json().catch(()=>({}));
+  if(!result.ok)throw new Error(data.message||"প্রকাশ করা যায়নি।");
+  status.textContent="সফল! খবর প্রকাশ হয়েছে। ওয়েবসাইটে দেখতে ১–২ মিনিট অপেক্ষা করুন।";
+  ["title","category","details","image","video","token"].forEach(id=>document.getElementById(id).value="");
+  document.getElementById("breaking").checked=false;
+ }catch(e){status.textContent="সমস্যা: "+e.message;}
 }
 load();
 </script>
