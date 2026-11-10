@@ -1,0 +1,59 @@
+
+<!DOCTYPE html>
+<html lang="bn">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>BD Barguna News - Admin</title>
+<style>
+body{font-family:Arial,sans-serif;background:#f2f4f7;margin:0;padding:18px}
+main{max-width:600px;margin:auto;background:white;padding:20px;border-radius:12px}
+h2{color:#b00020}
+input,textarea,button{width:100%;box-sizing:border-box;padding:12px;margin:8px 0;font-size:16px}
+button{background:#b00020;color:white;border:0;border-radius:6px}
+small{color:#555}
+</style>
+</head>
+<body>
+<main>
+<h2>BD Barguna News – Admin Panel</h2>
+<p>নতুন খবর লিখে JSON ফাইল তৈরি করুন।</p>
+<input id="title" placeholder="খবরের শিরোনাম">
+<input id="category" placeholder="বিভাগ (যেমন: বরগুনা)">
+<textarea id="details" rows="7" placeholder="খবরের বিস্তারিত লিখুন"></textarea>
+<button onclick="addNews()">খবর যোগ করুন</button>
+<button onclick="downloadNews()">posts.json ডাউনলোড করুন</button>
+<p id="status"></p>
+<small>ডাউনলোড করা posts.json ফাইলটি GitHub-এর মূল ফোল্ডারে আপলোড করে পুরোনো ফাইলটি প্রতিস্থাপন করতে হবে।</small>
+</main>
+<script>
+let posts=[];
+async function loadPosts(){
+ try{
+  const r=await fetch('./posts.json?'+Date.now());
+  if(r.ok) posts=await r.json();
+ }catch(e){}
+}
+function addNews(){
+ const title=document.getElementById('title').value.trim();
+ const category=document.getElementById('category').value.trim();
+ const details=document.getElementById('details').value.trim();
+ if(!title||!details){alert('শিরোনাম ও বিস্তারিত লিখুন');return;}
+ posts.unshift({title,category,details,date:new Date().toLocaleString('bn-BD')});
+ document.getElementById('title').value='';
+ document.getElementById('category').value='';
+ document.getElementById('details').value='';
+ document.getElementById('status').textContent='খবর যোগ হয়েছে। এবার posts.json ডাউনলোড করুন।';
+}
+function downloadNews(){
+ const blob=new Blob([JSON.stringify(posts,null,2)],{type:'application/json'});
+ const a=document.createElement('a');
+ a.href=URL.createObjectURL(blob);
+ a.download='posts.json';
+ a.click();
+ URL.revokeObjectURL(a.href);
+}
+loadPosts();
+</script>
+</body>
+</html>
