@@ -4,56 +4,86 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>BD Barguna News - Admin</title>
+<title>BD Barguna News Admin</title>
 <style>
-body{font-family:Arial,sans-serif;background:#f2f4f7;margin:0;padding:18px}
-main{max-width:600px;margin:auto;background:white;padding:20px;border-radius:12px}
-h2{color:#b00020}
+body{font-family:Arial;background:#f2f4f7;padding:15px}
+main{max-width:600px;margin:auto;background:white;padding:20px;border-radius:10px}
 input,textarea,button{width:100%;box-sizing:border-box;padding:12px;margin:8px 0;font-size:16px}
 button{background:#b00020;color:white;border:0;border-radius:6px}
-small{color:#555}
 </style>
 </head>
 <body>
 <main>
-<h2>BD Barguna News – Admin Panel</h2>
-<p>নতুন খবর লিখে JSON ফাইল তৈরি করুন।</p>
+<h2>BD Barguna News – Admin</h2>
+<p>নতুন খবর প্রকাশ করুন</p>
+<input id="token" type="password" placeholder="GitHub Token">
 <input id="title" placeholder="খবরের শিরোনাম">
-<input id="category" placeholder="বিভাগ (যেমন: বরগুনা)">
-<textarea id="details" rows="7" placeholder="খবরের বিস্তারিত লিখুন"></textarea>
-<button onclick="addNews()">খবর যোগ করুন</button>
-<button onclick="downloadNews()">posts.json ডাউনলোড করুন</button>
+<input id="category" placeholder="বিভাগ">
+<textarea id="details" rows="7" placeholder="খবরের বিস্তারিত"></textarea>
+<button onclick="publish()">সরাসরি খবর প্রকাশ করুন</button>
 <p id="status"></p>
-<small>ডাউনলোড করা posts.json ফাইলটি GitHub-এর মূল ফোল্ডারে আপলোড করে পুরোনো ফাইলটি প্রতিস্থাপন করতে হবে।</small>
 </main>
 <script>
+const owner="evasaimoon1-create";
+const repo="BD-Barguna-News-";
 let posts=[];
-async function loadPosts(){
+
+async function load(){
+ const r=await fetch("./posts.json?"+Date.now());
+ if(r.ok) posts=await r.json();
+}
+function base64(text){
+ const bytes=new TextEncoder().encode(text);
+ let binary="";
+ bytes.forEach(b=>binary+=String.fromCharCode(b));
+ return btoa(binary);
+}
+async function publish(){
+ const token=document.getElementById("token").value.trim();
+ const title=document.getElementById("title").value.trim();
+ const category=document.getElementById("category").value.trim();
+ const details=document.getElementById("details").value.trim();
+ const status=document.getElementById("status");
+ if(!token||!title||!details){
+ status.textContent="সব ঘর পূরণ করুন।";
+ return;
+ }
+ status.textContent="প্রকাশ করা হচ্ছে...";
  try{
-  const r=await fetch('./posts.json?'+Date.now());
-  if(r.ok) posts=await r.json();
- }catch(e){}
+ const url="https://api.github.com/repos/"+owner+"/"+repo+"/contents/posts.json";
+ const headers={
+ Accept:"application/vnd.github+json",
+ Authorization:"Bearer "+token,
+ "X-GitHub-Api-Version":"2022-11-28"
+ };
+ const old=await fetch(url+"?ref=main",{headers});
+ if(!old.ok) throw new Error("Token বা অনুমতি পরীক্ষা করুন।");
+ const file=await old.json();
+ posts.unshift({
+ title,category,details,
+ date:new Date().toLocaleString("bn-BD")
+ });
+ const result=await fetch(url,{
+ method:"PUT",
+ headers,
+ body:JSON.stringify({
+ message:"Publish news",
+ content:base64(JSON.stringify(posts,null,2)),
+ sha:file.sha,
+ branch:"main"
+ })
+ });
+ if(!result.ok) throw new Error("প্রকাশ করা যায়নি।");
+ status.textContent="সফল! খবর প্রকাশ হয়েছে।";
+ document.getElementById("title").value="";
+ document.getElementById("category").value="";
+ document.getElementById("details").value="";
+ document.getElementById("token").value="";
+ }catch(e){
+ status.textContent="সমস্যা: "+e.message;
+ }
 }
-function addNews(){
- const title=document.getElementById('title').value.trim();
- const category=document.getElementById('category').value.trim();
- const details=document.getElementById('details').value.trim();
- if(!title||!details){alert('শিরোনাম ও বিস্তারিত লিখুন');return;}
- posts.unshift({title,category,details,date:new Date().toLocaleString('bn-BD')});
- document.getElementById('title').value='';
- document.getElementById('category').value='';
- document.getElementById('details').value='';
- document.getElementById('status').textContent='খবর যোগ হয়েছে। এবার posts.json ডাউনলোড করুন।';
-}
-function downloadNews(){
- const blob=new Blob([JSON.stringify(posts,null,2)],{type:'application/json'});
- const a=document.createElement('a');
- a.href=URL.createObjectURL(blob);
- a.download='posts.json';
- a.click();
- URL.revokeObjectURL(a.href);
-}
-loadPosts();
+load();
 </script>
 </body>
 </html>
